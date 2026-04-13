@@ -19,13 +19,42 @@ from openscreener.scraper import PlaywrightScraper
 class PlaywrightScraperTestCase(unittest.TestCase):
     def test_load_page_uses_expected_navigation_sequence(self) -> None:
         page = MagicMock()
+        page.goto.return_value = MagicMock(status=200)
         scraper = PlaywrightScraper(timeout_ms=123, base_url="https://example.com/{symbol}{path_suffix}")
 
         scraper._load_page(page, "tcs")
 
         page.goto.assert_called_once_with("https://example.com/TCS/", wait_until="domcontentloaded", timeout=123)
-        page.wait_for_load_state.assert_called_once_with("networkidle")
+        page.wait_for_load_state.assert_not_called()
         page.wait_for_selector.assert_called_once_with("#top", timeout=123)
+
+    def test_load_page_raises_helpful_error_for_http_failures(self) -> None:
+        page = MagicMock()
+        page.goto.return_value = MagicMock(status=404)
+        scraper = PlaywrightScraper(base_url="https://example.com/{symbol}{path_suffix}")
+
+        with self.assertRaisesRegex(OpenScreenerError, "HTTP 404.*'TCS'"):
+            scraper._load_page(page, "tcs")
+
+        page.wait_for_selector.assert_not_called()
+
+    def test_load_page_wraps_browser_failures(self) -> None:
+        page = MagicMock()
+        page.goto.side_effect = RuntimeError("browser failed")
+        scraper = PlaywrightScraper(base_url="https://example.com/{symbol}{path_suffix}")
+
+        with self.assertRaisesRegex(OpenScreenerError, "Could not load Screener page.*'TCS'"):
+            scraper._load_page(page, "tcs")
+
+    def test_load_page_wraps_missing_content_failures(self) -> None:
+        page = MagicMock()
+        page.goto.return_value = MagicMock(status=200)
+        page.wait_for_selector.side_effect = RuntimeError("missing #top")
+        page.title.return_value = "Error 404: Page Not Found - Screener"
+        scraper = PlaywrightScraper(base_url="https://example.com/{symbol}{path_suffix}")
+
+        with self.assertRaisesRegex(OpenScreenerError, "Could not find Screener page content.*Page Not Found"):
+            scraper._load_page(page, "tcs")
 
     def test_build_url_supports_consolidated_and_standalone(self) -> None:
         standalone = PlaywrightScraper(base_url="https://example.com/{symbol}{path_suffix}")
@@ -54,6 +83,27 @@ class PlaywrightScraperTestCase(unittest.TestCase):
 
         self.assertEqual(html, "<html>TCS</html>")
         load_page.assert_called_once_with(page, "tcs")
+        page.close.assert_called_once()
+
+    def test_fetch_page_closes_page_when_load_fails(self) -> None:
+        page = MagicMock()
+        browser = MagicMock()
+        browser.new_page.return_value = page
+
+        class Session:
+            def __enter__(self):
+                return browser
+
+            def __exit__(self, exc_type, exc, tb):
+                return None
+
+        scraper = PlaywrightScraper()
+        with patch.object(PlaywrightScraper, "_browser_session", return_value=Session()), patch.object(
+            PlaywrightScraper, "_load_page", side_effect=OpenScreenerError("failed")
+        ):
+            with self.assertRaisesRegex(OpenScreenerError, "failed"):
+                scraper.fetch_page("tcs")
+
         page.close.assert_called_once()
 
     def test_fetch_pages_returns_html_by_symbol(self) -> None:
@@ -141,4 +191,16 @@ class PlaywrightScraperTestCase(unittest.TestCase):
 
         manager.chromium.launch.assert_called_once_with(headless=False)
         browser.close.assert_called_once()
+        manager.stop.assert_called_once()
+
+    def test_browser_session_raises_helpful_error_when_browser_launch_fails(self) -> None:
+        manager = MagicMock()
+        manager.chromium.launch.side_effect = RuntimeError("missing browser")
+        fake_sync_api = types.ModuleType("playwright.sync_api")
+        fake_sync_api.sync_playwright = MagicMock(return_value=MagicMock(start=MagicMock(return_value=manager)))
+
+        with patch.dict(sys.modules, {"playwright.sync_api": fake_sync_api, "playwright": types.ModuleType("playwright")}):
+            with self.assertRaisesRegex(OpenScreenerError, "playwright install chromium"):
+                PlaywrightScraper()._browser_session()
+
         manager.stop.assert_called_once()

@@ -21,19 +21,22 @@ class PlaywrightScraper:
     def fetch_page(self, symbol: str) -> str:
         with self._browser_session() as browser:
             page = browser.new_page()
-            self._load_page(page, symbol)
-            html = page.content()
-            page.close()
-            return html
+            try:
+                self._load_page(page, symbol)
+                return page.content()
+            finally:
+                page.close()
 
     def fetch_pages(self, symbols: Iterable[str]) -> dict[str, str]:
         result: dict[str, str] = {}
         with self._browser_session() as browser:
             for symbol in symbols:
                 page = browser.new_page()
-                self._load_page(page, symbol)
-                result[symbol.upper()] = page.content()
-                page.close()
+                try:
+                    self._load_page(page, symbol)
+                    result[symbol.upper()] = page.content()
+                finally:
+                    page.close()
         return result
 
     def fetch_constituent_pages(
@@ -47,9 +50,11 @@ class PlaywrightScraper:
         with self._browser_session() as browser:
             for page_number in page_numbers:
                 page = browser.new_page()
-                self._load_page(page, symbol, page_number=page_number, page_size=page_size)
-                html_pages.append(page.content())
-                page.close()
+                try:
+                    self._load_page(page, symbol, page_number=page_number, page_size=page_size)
+                    html_pages.append(page.content())
+                finally:
+                    page.close()
         return html_pages
 
     def _browser_session(self):
@@ -61,7 +66,14 @@ class PlaywrightScraper:
             ) from exc
 
         manager = sync_playwright().start()
-        browser = manager.chromium.launch(headless=self.headless)
+        try:
+            browser = manager.chromium.launch(headless=self.headless)
+        except Exception as exc:
+            manager.stop()
+            raise OpenScreenerError(
+                "Could not launch Playwright Chromium. Install browser binaries with "
+                "`python -m playwright install chromium`."
+            ) from exc
 
         class _Session:
             def __enter__(self_inner):
@@ -74,9 +86,30 @@ class PlaywrightScraper:
         return _Session()
 
     def _load_page(self, page, symbol: str, *, page_number: int | None = None, page_size: int | None = None) -> None:
-        page.goto(self._build_url(symbol, page_number=page_number, page_size=page_size), wait_until="domcontentloaded", timeout=self.timeout_ms)
-        page.wait_for_load_state("networkidle")
-        page.wait_for_selector("#top", timeout=self.timeout_ms)
+        url = self._build_url(symbol, page_number=page_number, page_size=page_size)
+        try:
+            response = page.goto(url, wait_until="domcontentloaded", timeout=self.timeout_ms)
+        except OpenScreenerError:
+            raise
+        except Exception as exc:
+            raise OpenScreenerError(f"Could not load Screener page for symbol '{symbol.upper()}'.") from exc
+
+        status = getattr(response, "status", None)
+        if isinstance(status, int) and status >= 400:
+            raise OpenScreenerError(f"Screener.in returned HTTP {status} for symbol '{symbol.upper()}'.")
+
+        try:
+            page.wait_for_selector("#top", timeout=self.timeout_ms)
+        except Exception as exc:
+            title = self._safe_page_title(page)
+            detail = f" Page title: {title}." if title else ""
+            raise OpenScreenerError(f"Could not find Screener page content for symbol '{symbol.upper()}'.{detail}") from exc
+
+    def _safe_page_title(self, page) -> str:
+        try:
+            return str(page.title())
+        except Exception:
+            return ""
 
     def _build_url(self, symbol: str, *, page_number: int | None = None, page_size: int | None = None) -> str:
         path_suffix = "/consolidated/" if self.consolidated else "/"

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "openscreener"
-version = "0.1.0"
+version = "0.1.1"
 description = "A Playwright-powered Python package for extracting structured financial data from Screener.in."
 readme = "README.md"
 license = "MIT"
@@ -50,6 +50,7 @@ dev = [
 
 [tool.hatch.build.targets.sdist]
 exclude = [
+  "/.codex",
   "/.venv",
   "/test",
   "/tests",

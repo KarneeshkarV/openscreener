@@ -322,12 +322,13 @@ python -m twine check dist/*
 
 ```bash
 python -m pytest -q
+rm -rf dist/
 python -m build --no-isolation
 python -m twine check dist/*
 python -m twine upload dist/*
 ```
 
-Each PyPI upload must use a new version number.
+Each PyPI upload must use a new version number. Clear `dist/` before building so old artifacts are not uploaded again.
 
 ## Limitations
 
