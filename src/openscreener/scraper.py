@@ -11,7 +11,7 @@ from .exceptions import OpenScreenerError
 
 @dataclass(slots=True)
 class PlaywrightScraper:
-    """Live HTML loader that fetches Screener pages through Playwright."""
+    """Live HTML loader that fetches Screener pages through rustwright."""
 
     base_url: str = "https://www.screener.in/company/{symbol}{path_suffix}"
     consolidated: bool = False
@@ -59,10 +59,10 @@ class PlaywrightScraper:
 
     def _browser_session(self):
         try:
-            from playwright.sync_api import sync_playwright
+            from rustwright.sync_api import sync_playwright
         except ImportError as exc:
             raise OpenScreenerError(
-                "Playwright is not installed. Install project dependencies before using the live scraper."
+                "rustwright is not installed. Install project dependencies before using the live scraper."
             ) from exc
 
         manager = sync_playwright().start()
@@ -71,8 +71,8 @@ class PlaywrightScraper:
         except Exception as exc:
             manager.stop()
             raise OpenScreenerError(
-                "Could not launch Playwright Chromium. Install browser binaries with "
-                "`python -m playwright install chromium`."
+                "Could not launch rustwright Chromium. Install browser binaries with "
+                "`python -m rustwright install chromium`."
             ) from exc
 
         class _Session:

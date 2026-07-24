@@ -1,6 +1,6 @@
 # openscreener
 
-`openscreener` is a Playwright-powered Python library for extracting structured financial data from [Screener.in](https://www.screener.in/).
+`openscreener` is a Rustwright-powered Python library for extracting structured financial data from [Screener.in](https://www.screener.in/).
 
 It loads live stock and index pages, detects the page type, and returns normalized Python dictionaries and lists for the sections you care about.
 
@@ -22,10 +22,10 @@ Install the package:
 pip install openscreener
 ```
 
-Install Playwright browser binaries:
+Check that Rustwright can find a Chromium installation:
 
 ```bash
-python -m playwright install chromium
+python -m rustwright install chromium
 ```
 
 Install pandas if you want `to_dataframe()` support:
@@ -333,12 +333,41 @@ Each PyPI upload must use a new version number. Clear `dist/` before building so
 ## Limitations
 
 - Parsing depends on Screener.in's current HTML structure.
-- Live usage requires Playwright and installed browser binaries.
+- Live usage requires Rustwright and an installed Chromium browser.
 - Missing sections raise `SectionNotFoundError`.
 - Large index fetches depend on Screener's pagination remaining accessible.
 - The project exposes a Python API; it does not currently provide a packaged CLI.
 
 Use the live scraper responsibly and in a way that respects Screener.in's terms and rate limits.
+
+## Browser Backend Benchmark
+
+Rustwright was compared with the previous Playwright backend using the same
+end-to-end operation: start the backend manager, launch headless Chromium,
+create a page, load local HTML, wait for `#top`, read the content, and shut
+everything down. A local page keeps network latency out of the measurement.
+
+Results from 20 measured runs after 2 warmups on Linux 6.8 x86-64 with Python
+3.13.14 (Playwright 1.61.0 and Rustwright 0.1.1):
+
+| Backend | Median | Mean | Standard deviation | Min | Max |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Playwright | 1,744.77 ms | 1,751.86 ms | 167.77 ms | 1,439.97 ms | 2,163.28 ms |
+| Rustwright | 514.33 ms | 529.64 ms | 114.12 ms | 420.54 ms | 828.29 ms |
+
+In this environment, Rustwright's median end-to-end time was **70.5% lower**
+than Playwright's, or about **3.39x faster**. These figures measure browser
+session overhead rather than Screener.in response time, and results will vary
+with the machine and Chromium installation.
+
+Reproduce the comparison from the repository root:
+
+```bash
+uv run --with playwright==1.61.0 --with rustwright==0.1.1 \
+  python benchmarks/compare_backends.py playwright --runs 20 --warmups 2
+uv run --with playwright==1.61.0 --with rustwright==0.1.1 \
+  python benchmarks/compare_backends.py rustwright --runs 20 --warmups 2
+```
 
 ## License
 

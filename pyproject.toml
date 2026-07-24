@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "openscreener"
 version = "0.1.1"
-description = "A Playwright-powered Python package for extracting structured financial data from Screener.in."
+description = "A rustwright-powered Python package for extracting structured financial data from Screener.in."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -14,7 +14,7 @@ authors = [
 ]
 keywords = [
   "finance",
-  "playwright",
+  "rustwright",
   "screener",
   "screener.in",
   "stocks",
@@ -32,7 +32,7 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-  "playwright>=1.43",
+  "rustwright>=0.1",
   "rich>=13.7",
 ]
 

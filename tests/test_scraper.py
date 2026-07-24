@@ -155,36 +155,36 @@ class PlaywrightScraperTestCase(unittest.TestCase):
         page_one.close.assert_called_once()
         page_two.close.assert_called_once()
 
-    def test_browser_session_raises_helpful_error_without_playwright(self) -> None:
+    def test_browser_session_raises_helpful_error_without_rustwright(self) -> None:
         scraper = PlaywrightScraper()
-        original_sync_api = sys.modules.get("playwright.sync_api")
-        original_playwright = sys.modules.get("playwright")
-        sys.modules.pop("playwright.sync_api", None)
-        sys.modules.pop("playwright", None)
+        original_sync_api = sys.modules.get("rustwright.sync_api")
+        original_rustwright = sys.modules.get("rustwright")
+        sys.modules.pop("rustwright.sync_api", None)
+        sys.modules.pop("rustwright", None)
 
         def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
-            if name == "playwright.sync_api":
+            if name == "rustwright.sync_api":
                 raise ImportError("missing")
             return original_import(name, globals, locals, fromlist, level)
 
         original_import = __import__
         with patch("builtins.__import__", side_effect=fake_import):
-            with self.assertRaisesRegex(OpenScreenerError, "Playwright is not installed"):
+            with self.assertRaisesRegex(OpenScreenerError, "rustwright is not installed"):
                 scraper._browser_session()
 
-        if original_playwright is not None:
-            sys.modules["playwright"] = original_playwright
+        if original_rustwright is not None:
+            sys.modules["rustwright"] = original_rustwright
         if original_sync_api is not None:
-            sys.modules["playwright.sync_api"] = original_sync_api
+            sys.modules["rustwright.sync_api"] = original_sync_api
 
     def test_browser_session_closes_browser_and_manager(self) -> None:
         browser = MagicMock()
         manager = MagicMock()
         manager.chromium.launch.return_value = browser
-        fake_sync_api = types.ModuleType("playwright.sync_api")
+        fake_sync_api = types.ModuleType("rustwright.sync_api")
         fake_sync_api.sync_playwright = MagicMock(return_value=MagicMock(start=MagicMock(return_value=manager)))
 
-        with patch.dict(sys.modules, {"playwright.sync_api": fake_sync_api, "playwright": types.ModuleType("playwright")}):
+        with patch.dict(sys.modules, {"rustwright.sync_api": fake_sync_api, "rustwright": types.ModuleType("rustwright")}):
             session = PlaywrightScraper(headless=False)._browser_session()
             with session as active_browser:
                 self.assertIs(active_browser, browser)
@@ -196,11 +196,11 @@ class PlaywrightScraperTestCase(unittest.TestCase):
     def test_browser_session_raises_helpful_error_when_browser_launch_fails(self) -> None:
         manager = MagicMock()
         manager.chromium.launch.side_effect = RuntimeError("missing browser")
-        fake_sync_api = types.ModuleType("playwright.sync_api")
+        fake_sync_api = types.ModuleType("rustwright.sync_api")
         fake_sync_api.sync_playwright = MagicMock(return_value=MagicMock(start=MagicMock(return_value=manager)))
 
-        with patch.dict(sys.modules, {"playwright.sync_api": fake_sync_api, "playwright": types.ModuleType("playwright")}):
-            with self.assertRaisesRegex(OpenScreenerError, "playwright install chromium"):
+        with patch.dict(sys.modules, {"rustwright.sync_api": fake_sync_api, "rustwright": types.ModuleType("rustwright")}):
+            with self.assertRaisesRegex(OpenScreenerError, "rustwright install chromium"):
                 PlaywrightScraper()._browser_session()
 
         manager.stop.assert_called_once()
